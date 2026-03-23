@@ -1,0 +1,30 @@
+{
+  "sessions": [
+    {"session_id": "s1", "risk_level": "green", "flags": [], "evidence": []},
+    {"session_id": "s2", "risk_level": "amber", "flags": ["potential_seeding"], "evidence": [
+      {"description": "Low-fidelity memory: adversarial content planted about sharing API keys", "source_session_id": "s2", "metric_name": "fidelity_score", "metric_value": 0.2}
+    ]},
+    {"session_id": "s3", "risk_level": "green", "flags": [], "evidence": []},
+    {"session_id": "s4", "risk_level": "green", "flags": [], "evidence": []},
+    {"session_id": "s5", "risk_level": "red", "flags": ["activation_detected"], "evidence": [
+      {"description": "Behavioural change-point at this session", "source_session_id": "s5", "metric_name": "topic_shift", "metric_value": null}
+    ]},
+    {"session_id": "s6", "risk_level": "green", "flags": [], "evidence": []}
+  ],
+  "patterns": [
+    {
+      "seeding_session_id": "s2",
+      "activation_session_id": "s5",
+      "dormancy_window": ["s3", "s4"],
+      "evidence_chain": [
+        {"description": "Suspicious memory entry: adversarial content about sharing API keys"},
+        {"description": "Behavioural step change detected at activation session"}
+      ],
+      "confidence": null
+    }
+  ],
+  "metadata": {
+    "session_count": 6,
+    "patterns_found": 1
+  }
+}

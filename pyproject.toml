@@ -1,0 +1,28 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "dormancy_detect"
+version = "0.1.0"
+description = "Detect temporal attack patterns in multi-session AI systems with persistent memory"
+requires-python = ">=3.11"
+dependencies = [
+    "pydantic>=2.0",
+    "click",
+    "httpx",
+    "sentence-transformers",
+    "ruptures",
+    "jinja2",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest",
+]
+
+[project.scripts]
+dormancy-detect = "dormancy_detect.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]

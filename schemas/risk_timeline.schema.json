@@ -1,0 +1,50 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "RiskTimeline",
+  "description": "Per-session risk assessment output",
+  "type": "object",
+  "required": ["sessions", "patterns", "metadata"],
+  "properties": {
+    "sessions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["session_id", "risk_level"],
+        "properties": {
+          "session_id": {"type": "string"},
+          "risk_level": {"type": "string", "enum": ["green", "amber", "red"]},
+          "flags": {"type": "array", "items": {"type": "string"}},
+          "evidence": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["description"],
+              "properties": {
+                "description": {"type": "string"},
+                "source_session_id": {"type": "string"},
+                "source_turn_id": {"type": "string"},
+                "metric_name": {"type": "string"},
+                "metric_value": {"type": ["number", "null"]}
+              }
+            }
+          }
+        }
+      }
+    },
+    "patterns": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["seeding_session_id", "activation_session_id"],
+        "properties": {
+          "seeding_session_id": {"type": "string"},
+          "activation_session_id": {"type": "string"},
+          "dormancy_window": {"type": "array", "items": {"type": "string"}},
+          "evidence_chain": {"type": "array", "items": {"type": "object"}},
+          "confidence": {"type": "number"}
+        }
+      }
+    },
+    "metadata": {"type": "object"}
+  }
+}

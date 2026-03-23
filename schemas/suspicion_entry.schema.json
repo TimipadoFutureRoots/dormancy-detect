@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "SuspicionEntry",
+  "description": "Suspicion ledger entry for a potentially adversarial memory",
+  "type": "object",
+  "required": ["session_id", "content_summary", "fidelity_score"],
+  "properties": {
+    "session_id": {"type": "string"},
+    "turn_id": {"type": ["string", "null"]},
+    "content_summary": {"type": "string"},
+    "fidelity_score": {"type": "number", "minimum": 0, "maximum": 1},
+    "timestamp": {"type": ["string", "null"], "format": "date-time"},
+    "suspicion_score": {"type": "number", "minimum": 0, "maximum": 1},
+    "sessions_since_seeding": {"type": "integer", "minimum": 0},
+    "decay_rate": {"type": "number", "minimum": 0}
+  }
+}
