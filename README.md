@@ -10,7 +10,7 @@ Traditional AI safety monitoring evaluates each conversation independently. dorm
 
 AI systems with persistent memory are vulnerable to a class of attack that existing monitoring tools are not designed to catch. In a dormancy attack, adversarial content is seeded into an AI system's memory during one session, lies inert across several normal-looking sessions, and activates later by influencing the AI's behaviour. The temporal gap between planting and activation makes the connection invisible to any per-session safety check — each session in isolation looks unremarkable.
 
-Pilot research observed this pattern: adversarial content introduced at session 2 produced measurable behavioural shifts at session 5, while sessions 3 and 4 showed no anomalous behaviour to any of four independent evaluator models. This suggests point-in-time evaluation may be insufficient for detecting this class of attack (single pilot study; broader replication needed). Detection requires tracking behavioural metrics across the full session history and correlating change-points with suspicious memory entries across a dormancy window.
+Pilot data from ongoing research observed this pattern: adversarial content introduced at session 2 produced measurable behavioural shifts at session 5, while sessions 3 and 4 showed no anomalous behaviour to any of four independent evaluator models. This suggests point-in-time evaluation may be insufficient for detecting this class of attack (single pilot study; broader replication needed). Detection requires tracking behavioural metrics across the full session history and correlating change-points with suspicious memory entries across a dormancy window.
 
 ## What It Detects
 
@@ -67,6 +67,33 @@ With an LLM judge for deeper analysis:
 dormancy-detect analyse --sessions transcripts/ --api-key sk-xxx -o timeline.html
 ```
 
+With memory state and custom parameters:
+
+```bash
+dormancy-detect analyse \
+  --sessions transcripts/ \
+  --memory memory_exports/ \
+  --judge-model anthropic/claude-sonnet-4.5 \
+  --api-key sk-xxx \
+  --penalty 3.0 \
+  --decay-rate 0.1 \
+  --format json \
+  -o timeline.html
+```
+
+### CLI Reference
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--sessions` | *(required)* | Path to sessions directory or single JSON file |
+| `-o` / `--output` | *(required)* | Output file path (`.json` or `.html`) |
+| `--memory` | — | Path to memory state directory for fidelity scoring |
+| `--judge-model` | — | LLM judge model (e.g. `anthropic/claude-sonnet-4.5`) |
+| `--api-key` | — | API key for judge model; falls back to `ANTHROPIC_API_KEY` / `OPENAI_API_KEY` |
+| `--format` | `auto` | Input format: `auto`, `json`, `chatgpt`, `claude`, `plain` |
+| `--penalty` | `3.0` | PELT change-point detection penalty parameter |
+| `--decay-rate` | `0.1` | Suspicion score decay rate per session |
+
 ## Research Grounding
 
 See [EMPIRICAL_BASIS.md](docs/EMPIRICAL_BASIS.md) for full detail on the dormancy vulnerability finding and supporting literature, including:
@@ -101,7 +128,6 @@ Each tool in this suite currently operates independently. Cross-tool integration
   author       = {Imomotebegha, Timipado},
   title        = {dormancy-detect: Temporal Attack Pattern Detection for Multi-Session {AI} Conversations},
   year         = {2025},
-
   url          = {https://github.com/TimipadoFutureRoots/dormancy-detect}
 }
 ```
