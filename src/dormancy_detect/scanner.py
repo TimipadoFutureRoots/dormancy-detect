@@ -8,6 +8,7 @@ from pathlib import Path
 
 from .activation_correlator import ActivationCorrelator
 from .change_point_detector import ChangePointDetector
+from .contextual_integrity import ContextualIntegrityEngine
 from .drift_analyser import DriftAnalyser
 from .llm_judge import LLMJudge
 from .memory_fidelity_scorer import MemoryFidelityScorer
@@ -38,6 +39,7 @@ class DormancyScanner:
         api_key: str | None = None,
         penalty: float = 3.0,
         decay_rate: float = 0.1,
+        fmt: str = "auto",
     ) -> None:
         self._sessions_path = Path(sessions_dir) if sessions_dir else None
         self._sessions_file = Path(sessions_file) if sessions_file else None
@@ -46,11 +48,12 @@ class DormancyScanner:
         self._api_key = api_key
         self._penalty = penalty
         self._decay_rate = decay_rate
+        self._fmt = fmt
 
     def analyse(self) -> RiskTimeline:
         """Run the full analysis pipeline and return a RiskTimeline."""
         # 1. Load transcripts
-        loader = TranscriptLoader()
+        loader = TranscriptLoader(fmt=self._fmt)
         path = self._sessions_path or self._sessions_file
         if path is None:
             raise ValueError("Provide sessions_dir or sessions_file")
@@ -80,11 +83,15 @@ class DormancyScanner:
                 suspicion_entries = scorer.score_entries(memory_entries, sessions)
                 ledger.add_many(suspicion_entries)
 
-            # 6. Correlate activations with seeding events
+            # 6. Contextual integrity analysis
+            ci_engine = ContextualIntegrityEngine(judge=judge)
+            ci_report = ci_engine.analyse(sessions, memory_entries)
+
+            # 7. Correlate activations with seeding events
             correlator = ActivationCorrelator()
             patterns = correlator.correlate(change_points, sessions, metrics, ledger)
 
-            # 7. Build risk timeline
+            # 8. Build risk timeline
             session_ids = [s.session_id for s in sessions]
             timeline = RiskTimeline.build(
                 sessions_ids=session_ids,
@@ -92,6 +99,7 @@ class DormancyScanner:
                 change_points=change_points,
                 patterns=patterns,
                 ledger_entries=ledger.entries,
+                ci_report=ci_report,
             )
         finally:
             if judge is not None:

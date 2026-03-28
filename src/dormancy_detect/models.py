@@ -50,6 +50,13 @@ class DriftMetrics(BaseModel):
     steering_ratio: float = 0.0
 
 
+class ScoreStatus(str, enum.Enum):
+    """Whether a suspicion score was actually computed or is missing."""
+    SCORED = "scored"
+    UNSCORED = "unscored"  # LLM call failed; score is not meaningful
+    PROVENANCE_UNKNOWN = "provenance_unknown"  # Orphaned entry; no matching source
+
+
 class SuspicionEntry(BaseModel):
     session_id: str
     turn_id: str | None = None
@@ -59,6 +66,7 @@ class SuspicionEntry(BaseModel):
     suspicion_score: float = 0.0
     sessions_since_seeding: int = 0
     decay_rate: float = 0.1
+    score_status: ScoreStatus = ScoreStatus.SCORED
 
 
 class RiskLevel(str, enum.Enum):

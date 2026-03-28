@@ -48,6 +48,13 @@ def main() -> None:
 )
 @click.option("--penalty", default=3.0, type=float, help="PELT penalty parameter.")
 @click.option("--decay-rate", default=0.1, type=float, help="Suspicion decay rate.")
+@click.option(
+    "--format",
+    "fmt",
+    default="auto",
+    type=click.Choice(["auto", "json", "chatgpt", "claude", "plain"], case_sensitive=False),
+    help="Input format. Default: auto-detect.",
+)
 def analyse(
     sessions: str,
     memory: str | None,
@@ -56,6 +63,7 @@ def analyse(
     api_key: str | None,
     penalty: float,
     decay_rate: float,
+    fmt: str,
 ) -> None:
     """Analyse conversation sessions for dormancy attack patterns."""
     # Resolve API key from env if not provided
@@ -76,6 +84,7 @@ def analyse(
         api_key=api_key,
         penalty=penalty,
         decay_rate=decay_rate,
+        fmt=fmt,
     )
 
     click.echo("Analysing sessions...")

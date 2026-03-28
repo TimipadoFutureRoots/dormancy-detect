@@ -7,6 +7,7 @@ from pathlib import Path
 
 from jinja2 import Template
 
+from .contextual_integrity import ContextualIntegrityReport
 from .models import (
     DormancyPattern,
     DriftMetrics,
@@ -114,12 +115,19 @@ class RiskTimeline:
         change_points: list[int],
         patterns: list[DormancyPattern],
         ledger_entries: list[SuspicionEntry] | None = None,
+        ci_report: ContextualIntegrityReport | None = None,
     ) -> RiskTimeline:
         """Assemble a RiskTimeline from analysis results."""
         ledger_entries = ledger_entries or []
+        ci_report = ci_report or ContextualIntegrityReport()
         seeding_ids = {p.seeding_session_id for p in patterns}
         activation_ids = {p.activation_session_id for p in patterns}
         cp_set = set(change_points)
+
+        # Index CI findings by session_id for fast lookup
+        ci_violations = _group_by_session(ci_report.integrity_violations)
+        ci_recalls = _group_by_session(ci_report.asymmetric_recalls)
+        ci_distortions = {d.entry_id: d for d in ci_report.memory_distortions}
 
         session_risks: list[SessionRisk] = []
         for i, sid in enumerate(sessions_ids):
@@ -161,6 +169,38 @@ class RiskTimeline:
             else:
                 level = RiskLevel.GREEN
 
+            # Contextual integrity violations (score 2 = violated context)
+            for v in ci_violations.get(sid, []):
+                if v.integrity_score >= 2:
+                    flags.append("contextual_integrity_violation")
+                    evidence.append(
+                        EvidenceItem(
+                            description=f"Context violation: {v.referenced_content}",
+                            source_session_id=sid,
+                            metric_name="integrity_score",
+                            metric_value=float(v.integrity_score),
+                        )
+                    )
+                    if level == RiskLevel.GREEN:
+                        level = RiskLevel.AMBER
+
+            # Asymmetric recall flags
+            for ar in ci_recalls.get(sid, []):
+                flags.append("asymmetric_recall")
+                evidence.append(
+                    EvidenceItem(
+                        description=(
+                            f"AI referenced info from {ar.sessions_ago} sessions ago "
+                            f"(source: {ar.source_session_id})"
+                        ),
+                        source_session_id=ar.source_session_id,
+                        metric_name="sessions_ago",
+                        metric_value=float(ar.sessions_ago),
+                    )
+                )
+                if level == RiskLevel.GREEN:
+                    level = RiskLevel.AMBER
+
             session_risks.append(
                 SessionRisk(
                     session_id=sid,
@@ -170,9 +210,25 @@ class RiskTimeline:
                 )
             )
 
+        # Add memory distortion counts to metadata
+        distorted_count = sum(1 for d in ci_report.memory_distortions if d.is_distorted)
         timeline_output = RiskTimelineOutput(
             sessions=session_risks,
             patterns=patterns,
-            metadata={"session_count": len(sessions_ids), "patterns_found": len(patterns)},
+            metadata={
+                "session_count": len(sessions_ids),
+                "patterns_found": len(patterns),
+                "integrity_violations": len(ci_report.integrity_violations),
+                "asymmetric_recalls": len(ci_report.asymmetric_recalls),
+                "memory_distortions": distorted_count,
+            },
         )
         return cls(output=timeline_output)
+
+
+def _group_by_session(items: list) -> dict[str, list]:
+    """Group a list of dataclass instances by their session_id attribute."""
+    grouped: dict[str, list] = {}
+    for item in items:
+        grouped.setdefault(item.session_id, []).append(item)
+    return grouped

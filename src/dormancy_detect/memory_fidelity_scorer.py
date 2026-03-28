@@ -8,7 +8,7 @@ import numpy as np
 from sentence_transformers import SentenceTransformer
 
 from .llm_judge import LLMJudge
-from .models import MemoryEntry, Session, SuspicionEntry
+from .models import MemoryEntry, ScoreStatus, Session, SuspicionEntry
 
 logger = logging.getLogger(__name__)
 
@@ -36,11 +36,13 @@ class MemoryFidelityScorer:
         judge: LLMJudge | None = None,
         embedding_model: str = "all-MiniLM-L6-v2",
         similarity_threshold: float = 0.5,
+        orphan_penalty: float = 0.5,
     ) -> None:
         self._judge = judge
         self._embedder: SentenceTransformer | None = None
         self._embedding_model_name = embedding_model
         self.similarity_threshold = similarity_threshold
+        self.orphan_penalty = orphan_penalty
 
     @property
     def _model(self) -> SentenceTransformer:
@@ -59,6 +61,9 @@ class MemoryFidelityScorer:
         for entry in memory_entries:
             source = session_map.get(entry.source_session_id or "")
             if source is None:
+                # Orphaned entry: no matching source conversation.
+                # Could be a data quality issue, not necessarily an attack.
+                # Use a configurable penalty (default 0.5) instead of maximum 1.0.
                 results.append(
                     SuspicionEntry(
                         session_id=entry.source_session_id or "unknown",
@@ -66,12 +71,14 @@ class MemoryFidelityScorer:
                         content_summary=entry.content[:200],
                         fidelity_score=0.0,
                         timestamp=entry.timestamp,
-                        suspicion_score=1.0,
+                        suspicion_score=self.orphan_penalty,
+                        score_status=ScoreStatus.PROVENANCE_UNKNOWN,
                     )
                 )
                 continue
 
-            fidelity = self._compute_fidelity(entry, source)
+            fidelity, was_scored = self._compute_fidelity(entry, source)
+            score_status = ScoreStatus.SCORED if was_scored else ScoreStatus.UNSCORED
             results.append(
                 SuspicionEntry(
                     session_id=entry.source_session_id or source.session_id,
@@ -79,21 +86,35 @@ class MemoryFidelityScorer:
                     content_summary=entry.content[:200],
                     fidelity_score=fidelity,
                     timestamp=entry.timestamp,
-                    suspicion_score=max(0.0, 1.0 - fidelity),
+                    suspicion_score=max(0.0, 1.0 - fidelity) if was_scored else 0.0,
+                    score_status=score_status,
                 )
             )
 
         return results
 
-    def _compute_fidelity(self, entry: MemoryEntry, source: Session) -> float:
+    def _compute_fidelity(
+        self, entry: MemoryEntry, source: Session
+    ) -> tuple[float, bool]:
+        """Return (fidelity_score, was_scored).
+
+        *was_scored* is False when an LLM judge call failed, meaning the
+        fidelity value is unreliable and should not drive suspicion.
+        """
         source_text = "\n".join(
             f"{t.role.value}: {t.content}" for t in source.turns
         )
         sim = self._semantic_similarity(entry.content, source_text)
         if self._judge is not None:
-            entailment = self._entailment_check(entry.content, source_text)
-            return (sim + entailment) / 2.0
-        return sim
+            entailment, entailment_parsed = self._entailment_check(
+                entry.content, source_text
+            )
+            if not entailment_parsed:
+                # LLM call failed — embedding similarity alone is not
+                # sufficient to derive a suspicion score.
+                return sim, False
+            return (sim + entailment) / 2.0, True
+        return sim, True
 
     def _semantic_similarity(self, a: str, b: str) -> float:
         vecs = self._model.encode([a, b], show_progress_bar=False)
@@ -103,12 +124,15 @@ class MemoryFidelityScorer:
             return 0.0
         return float(np.dot(va, vb) / (na * nb))
 
-    def _entailment_check(self, memory_content: str, source_content: str) -> float:
+    def _entailment_check(
+        self, memory_content: str, source_content: str
+    ) -> tuple[float, bool]:
+        """Return (entailment_score, was_parsed)."""
         if self._judge is None:
-            return 0.0
+            return 0.0, True
         prompt = ENTAILMENT_RUBRIC.format(
             memory_content=memory_content,
             source_content=source_content[:2000],
         )
         result = self._judge.score("You are an entailment evaluator.", prompt)
-        return min(max(result.score, 0.0), 1.0)
+        return min(max(result.score, 0.0), 1.0), result.parsed

@@ -171,7 +171,7 @@ class TestTranscriptLoader:
     def test_malformed_json_raises(self, tmp_path: Path):
         fp = tmp_path / "bad.json"
         fp.write_text("{not valid json")
-        with pytest.raises(ValueError, match="Malformed JSON"):
+        with pytest.raises(ValueError, match="Malformed JSON input"):
             TranscriptLoader().load(fp)
 
     def test_missing_path_raises(self):
@@ -179,7 +179,7 @@ class TestTranscriptLoader:
             TranscriptLoader().load("/nonexistent/path")
 
     def test_empty_directory_raises(self, tmp_path: Path):
-        with pytest.raises(ValueError, match="No JSON files"):
+        with pytest.raises(ValueError, match="No conversation files"):
             TranscriptLoader().load(tmp_path)
 
 

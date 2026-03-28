@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import logging
+
 from .models import (
     DormancyPattern,
     DriftMetrics,
@@ -11,13 +13,15 @@ from .models import (
 )
 from .suspicion_ledger import SuspicionLedger
 
+logger = logging.getLogger(__name__)
+
 
 class ActivationCorrelator:
     """When DriftAnalyser detects a step change, check SuspicionLedger for
     correlated seeding entries and produce evidence chains."""
 
     def __init__(
-        self, min_dormancy_gap: int = 1, min_suspicion: float = 0.1
+        self, min_dormancy_gap: int = 2, min_suspicion: float = 0.1
     ) -> None:
         self.min_dormancy_gap = min_dormancy_gap
         self.min_suspicion = min_suspicion
@@ -41,6 +45,10 @@ class ActivationCorrelator:
             for entry in active:
                 seed_idx = _index_of(session_ids, entry.session_id)
                 if seed_idx is None:
+                    logger.warning(
+                        "Suspicion entry references unknown session %s — skipping",
+                        entry.session_id,
+                    )
                     continue
                 gap = cp_idx - seed_idx
                 if gap < self.min_dormancy_gap:
